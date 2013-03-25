@@ -240,10 +240,16 @@ void copy_file_part(const char* infile, const char* outfile,
 	}
 }
 
-void extract_elf(int img_fd, const char* img_filename,
-	unsigned long* offset, unsigned long* ramdisk_size) {
+void extract_elf(const char* img_filename, unsigned long* offset,
+	unsigned long* ramdisk_size) {
+	int img_fd;
 	Elf *e;
 	GElf_Phdr phdr;
+
+	if ((img_fd = open(input_filename, O_RDONLY, 0)) < 0) {
+		printf("Unable to open '%s' for read.\n", input_filename);
+		exit(-1);
+	}
 
 	if ((e = elf_begin(img_fd, ELF_C_READ, NULL)) == NULL) {
 		printf("elf_begin failed.\n");
@@ -272,8 +278,9 @@ void extract_elf(int img_fd, const char* img_filename,
 	close(img_fd);
 }
 
-void extract_android(int img_fd, const char* img_filename,
-	unsigned long* offset, unsigned long* ramdisk_size) {
+void extract_android(const char* img_filename, unsigned long* offset,
+	unsigned long* ramdisk_size) {
+	int img_fd;
 	boot_img_hdr header;
 	size_t result, header_size = sizeof(header);
 	unsigned char* buffer;
@@ -287,6 +294,11 @@ void extract_android(int img_fd, const char* img_filename,
 	buffer = (unsigned char*)malloc(sizeof(unsigned char) * header_size);
 	if(buffer == NULL){
 		printf("Memory allocation error for header!\n");
+		exit(-1);
+	}
+
+	if ((img_fd = open(input_filename, O_RDONLY, 0)) < 0) {
+		printf("Unable to open '%s' for read.\n", input_filename);
 		exit(-1);
 	}
 
@@ -350,19 +362,14 @@ void extract_ramdisk() {
 		exit(-1);
 	}
 	close(img_fd);
-	if ((img_fd = open(input_filename, O_RDONLY, 0)) < 0) {
-		printf("Unable to open '%s' for read.\n", input_filename);
-		exit(-1);
-	}
 
-	if (strncmp(magic_buffer, "ELF!", read_size) == 0) {
+	if (strncmp(magic_buffer + 1, "ELF", 3) == 0) {
 		printf("ELF format...\n");
-		extract_elf(img_fd, input_filename, &offset, &ramdisk_size);
-	} else if (strncmp(magic_buffer, "ANDR", read_size) == 0) {
+		extract_elf(input_filename, &offset, &ramdisk_size);
+	} else if (strncmp(magic_buffer, "ANDR", 4) == 0) {
 		printf("ANDROID! format...\n");
-		extract_android(img_fd, input_filename, &offset, &ramdisk_size);
+		extract_android(input_filename, &offset, &ramdisk_size);
 	} else {
-		close(img_fd);
 		printf("Unknown magic of '%s' in '%s'.\n", magic_buffer,
 			input_filename);
 		exit(-1);
